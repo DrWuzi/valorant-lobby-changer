@@ -8,37 +8,6 @@ import cv2
 from PIL import Image, ImageTk
 
 
-def save_valorant_directory():
-    try:
-        # Check if the config file exists
-        if os.path.exists(os.path.join(os.getcwd(), 'config.json')):
-            # Read the config file and extract the valorant_directory if it exists
-            with open(os.path.join(os.getcwd(), 'config.json'), 'r') as config_file:
-                config_data = json.load(config_file)
-                valorant_directory = config_data.get('valorant_directory', None)
-                if valorant_directory and os.path.exists(valorant_directory):
-                    return valorant_directory
-
-        # Specify the target path to search for
-        target_path = "/Riot Games/VALORANT/live/ShooterGame/Content/Movies/Menu"
-
-        # Search for the target path in the available drives
-        for drive in ['C:', 'D:', 'E:', 'F:', 'G:', 'H:']:
-            valorant_path = os.path.join(drive, target_path)
-            if os.path.exists(valorant_path):
-                # Save the result in a JSON file
-                config_data = {"valorant_directory": valorant_path}
-                with open(os.path.join(os.getcwd(), 'config.json'), 'w') as config_file:
-                    json.dump(config_data, config_file, indent=4)
-                return valorant_path
-
-        # If the path is not found, return False
-        return False
-    except Exception as e:
-        messagebox.showerror("Error", f"An error occurred while saving Valorant directory: {str(e)}")
-        return False
-
-
 class VideoPlayerApp:
     def __init__(self, root):
         self.root = root
@@ -136,7 +105,7 @@ class VideoPlayerApp:
             messagebox.showerror("Error", f"An error occurred while loading last selected video: {str(e)}")
 
     def select_video(self):
-        file_path = filedialog.askopenfilename(filetypes=[("Video files", "*.mp4;*.avi;*.mov;*.mkv")])
+        file_path = filedialog.askopenfilename(filetypes=[("Video files", "*.mp4")])
         if file_path:
             # Copy the selected video file to the 'videos' directory
             destination = os.path.join('videos', os.path.basename(file_path))
@@ -202,21 +171,19 @@ class VideoPlayerApp:
             selected_video = self.video_files[self.current_index]
 
             # Get the target directory from the config file
-            with open(self.config_file_path, 'r') as config_file:
-                config_data = json.load(config_file)
-                target_directory = config_data.get('valorant_directory')
+            valorant_directory = self.load_or_select_valorant_directory()
 
             try:
                 # Check if the target directory exists
-                if target_directory and os.path.exists(target_directory):
+                if valorant_directory and os.path.exists(valorant_directory):
                     # Check if the selected video file exists
                     if os.path.exists(selected_video):
                         # Get the list of .mp4 files in the target directory
-                        mp4_files = [f for f in os.listdir(target_directory) if f.endswith('.mp4')]
+                        mp4_files = [f for f in os.listdir(valorant_directory) if f.endswith('.mp4')]
 
                         # Copy the selected video to the target directory and replace all .mp4 files
                         for mp4_file in mp4_files:
-                            shutil.copy(selected_video, os.path.join(target_directory, mp4_file))
+                            shutil.copy(selected_video, os.path.join(valorant_directory, mp4_file))
 
                         # Inform the user about the successful operation
                         messagebox.showinfo("Success", "Changes applied successfully.")
@@ -230,13 +197,42 @@ class VideoPlayerApp:
                 # Inform the user about the error
                 messagebox.showerror("Error", f"An error occurred: {str(e)}")
 
+    def load_or_select_valorant_directory(self):
+        try:
+            # Load the Valorant directory from the config file if available
+            config_data = {}
+            if os.path.exists(self.config_file_path):
+                with open(self.config_file_path, 'r') as config_file:
+                    config_data = json.load(config_file)
+            valorant_directory = config_data.get('valorant_directory')
+
+            # If Valorant directory is not available in the config, prompt the user to select it
+            if not valorant_directory or not os.path.exists(valorant_directory):
+                valorant_directory = filedialog.askdirectory(title="Select Valorant Directory")
+                if valorant_directory:
+                    # Normalize the path and split it
+                    valorant_directory_parts = os.path.normpath(valorant_directory).split(os.sep)
+                    # Find the index of the last occurrence of 'Riot Games' in the path
+                    if 'Riot Games' in valorant_directory_parts and 'VALORANT' in valorant_directory_parts:
+                        valorant_index = valorant_directory_parts.index('VALORANT')
+                        valorant_directory = "\\".join(valorant_directory_parts[:valorant_index+1]) + "\\live\\ShooterGame\\Content\\Movies\\Menu"
+                    else:
+                        messagebox.showerror("Error", "Valorant directory must contain 'Riot Games' and 'VALORANT' directory.")
+                        return None
+                    # Update the config with the selected directory
+                    config_data['valorant_directory'] = valorant_directory
+                    with open(self.config_file_path, 'w') as config_file:
+                        json.dump(config_data, config_file, indent=4)
+            return valorant_directory
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while selecting Valorant directory: {str(e)}")
+            return None
+
 
 def main():
-    save_valorant_directory()
     root = tk.Tk()
     app = VideoPlayerApp(root)
     root.mainloop()
-
 
 if __name__ == "__main__":
     main()
